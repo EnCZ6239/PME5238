@@ -1,0 +1,84 @@
+/////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////
+/////
+///// 
+/////                              MESH GENERATOR for a constricted channel
+/////
+/////             This file creates a mesh and an initial base flow for the "StabFem" program.
+/////
+/////             input parameters : Xbefore Xafter d alpha
+/////  			  
+/////
+/////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////
+
+include "StabFem.idp";
+//string ffdatadir = "./WORK/";
+
+// load "iovtk"                       /// load library to write in vtk format
+// load "BinaryIO"                 ////load libary to write the solution in binary form
+// load "BinaryIO_64"
+
+cout << " Generation of an initial mesh for a 2D constricted channel" << endl;
+
+real xinlet = getARGV("-Xinlet",-2.);
+real xoutlet = getARGV("-Xoutlet",10.);
+real d = getARGV("-d",0.5);
+real alpha = getARGV("-alpha",10);
+real n = getARGV("-n",10);
+
+
+cout << "$$ Dimensions of domain : " << endl << "     Xbefore = " << xinlet << " ; Xafter = " << xoutlet << " ; d/D = " << d << "alpha = "<< alpha << endl;  
+
+
+real comprim = 0.5;
+real B2 = (1-d)/2 + comprim;
+real B3 = B2 + (1-d)/2/tan(alpha*pi/180);
+
+// with symmetry
+/*
+border inlet(t=0., 1.){x=xinlet; y=0.5*(1-t);label=1;}
+border axis(t=0., 1.){x= xinlet + t*(xoutlet -xinlet); y=0;label=6;}
+border outlet(t=0., 1.){x=xoutlet; y=0.5*t;label=3;}
+border borderafter(t=0., 1.){x=xoutlet - (xoutlet - B3)*t; y=0.5;label=2;}
+border diverg(t=0., 1.){x=B3 - (1-d)/2/tan(alpha*pi/180)*t; y=0.5-(1-d)/2*t;label=2;}
+border reto(t=0., 1.){x= B2 - comprim*t; y=d/2;label=2;}
+border conv(t=0., 1.){x=(1-d)/2-(1-d)/2*t; y = d/2 + (1-d)/2*t;label=2;}
+border borderbefore(t=0., 1.){x=xinlet*t; y=0.5;label=2;}
+*/
+// without symmetry
+
+border inlet(t=0., 1.){x=xinlet; y=0.5 - t;label=1;}
+border borderunderbefore(t=0., 1.){x=xinlet*(1-t); y=-0.5;label=2;}
+border convunder(t=0., 1.){x=(1-d)/2*t; y = -0.5 + (1-d)/2*t;label=2;}
+border retounder(t=0., 1.){x= (1-d)/2 + comprim*t; y=-d/2;label=2;}
+border divergunder(t=0., 1.){x=B2 + (1-d)/2/tan(alpha*pi/180)*t; y=-d/2-(1-d)/2*t;label=2;}
+border borderunderafter(t=0., 1.){x=B3 + (xoutlet - B3)*t; y=-0.5;label=2;}
+
+border outlet(t=0., 1.){x=xoutlet; y=-0.5 + t;label=3;}
+border borderafter(t=0., 1.){x=xoutlet - (xoutlet - B3)*t; y=0.5;label=2;}
+border diverg(t=0., 1.){x=B3 - (1-d)/2/tan(alpha*pi/180)*t; y=0.5-(1-d)/2*t;label=2;}
+border reto(t=0., 1.){x= B2 - comprim*t; y=d/2;label=2;}
+border conv(t=0., 1.){x=(1-d)/2-(1-d)/2*t; y = d/2 + (1-d)/2*t;label=2;}
+border borderbefore(t=0., 1.){x=xinlet*t; y=0.5;label=2;}
+
+
+
+mesh th = buildmesh(inlet(n) + borderunderbefore(n*(-xinlet)) + convunder(0.7*n/2) + retounder(n/2) + divergunder(n/4/tan(alpha*pi/180)) + borderunderafter(n*xoutlet) +outlet(n) + borderbefore(n*(-xinlet)) + conv(0.7*n/2) + reto(n/2) + diverg(n/4/tan(alpha*pi/180)) + borderafter(n*xoutlet));
+
+//mesh th = buildmesh(inlet(n) + borderunder(2*n*(xoutlet-xinlet)) + outlet(n) + borderafter(2*n*xoutlet) + borderbefore(-2*n*xinlet) + diverg(n/2/tan(alpha*pi/180)) + reto(n) + conv(0.7*n));
+
+///////////////////////////////////////////////////////////////////////////////
+
+// SAVE THE MESH in mesh.msh file 
+savemesh(th,ffdatadir+"mesh.msh");
+
+// AUXILIARY FILE  for Stabfem : mesh.ff2m
+IFMACRO(SFWriteMesh)
+	SFWriteMesh(ffdatadir+"mesh.ff2m",th,"initial")
+ENDIFMACRO
+
+// SECOND AUXILIARY FILE NEEDED TO PLOT P2 and vectorized DATA
+IFMACRO(SFWriteConnectivity)
+	SFWriteConnectivity(ffdatadir+"mesh_connectivity.ff2m",th);
+ENDIFMACRO
